@@ -601,6 +601,7 @@ let state = {
 
 let openrouterModels = null;
 let dropdownCloseTimer = null;
+let modelRegistry = {}; // index → model, for safe event delegation
 
 // ─── Platform ──────────────────────────────────────────────────────────────
 function selectPlatform(p) {
@@ -681,15 +682,18 @@ function renderDropdownItems(query) {
     return;
   }
 
-  dd.innerHTML = filtered.map(m => `
-    <div class="model-option ${state.model === m ? 'selected' : ''}"
-         onmousedown="selectModel(${JSON.stringify(m.name)}, ${m.input}, ${m.output})">
+  modelRegistry = {};
+  dd.innerHTML = filtered.map((m, i) => {
+    modelRegistry[i] = m;
+    return `
+    <div class="model-option ${state.model && state.model.name === m.name ? 'selected' : ''}"
+         data-model-idx="${i}">
       <span class="model-option-name">${m.name}${m.id ? `<br><small style="color:var(--text-muted);font-size:0.72em">${m.id}</small>` : ''}</span>
       <span class="model-option-prices">
         In: $${fmt(m.input)}<br>Out: $${fmt(m.output)}
       </span>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function selectModel(name, input, output) {
@@ -885,6 +889,14 @@ function fmtTokens(n) {
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────
+document.getElementById('modelDropdown').addEventListener('mousedown', e => {
+  const option = e.target.closest('[data-model-idx]');
+  if (!option) return;
+  e.preventDefault(); // prevent blur from firing before selection
+  const m = modelRegistry[option.dataset.modelIdx];
+  if (m) selectModel(m.name, m.input, m.output);
+});
+
 renderDropdownItems('');
 </script>
 </body>

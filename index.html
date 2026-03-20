@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Model Cost Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3350;
+      --text: #e8eaf0;
+      --text-muted: #7a8099;
+      --accent-together: #6c63ff;
+      --accent-fireworks: #ff6b35;
+      --accent-openrouter: #00c896;
+      --accent: #6c63ff;
+      --input-bg: #12151f;
+      --result-bg: #0d1f15;
+      --result-border: #1a4a30;
+      --result-text: #4ade80;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    /* Platform Tabs */
+    .platform-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: var(--surface2);
+      padding: 6px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+    .tab-btn.active[data-platform="together"] { background: rgba(108,99,255,0.2); color: var(--accent-together); border: 1px solid rgba(108,99,255,0.3); }
+    .tab-btn.active[data-platform="fireworks"] { background: rgba(255,107,53,0.2); color: var(--accent-fireworks); border: 1px solid rgba(255,107,53,0.3); }
+    .tab-btn.active[data-platform="openrouter"] { background: rgba(0,200,150,0.2); color: var(--accent-openrouter); border: 1px solid rgba(0,200,150,0.3); }
+
+    /* Section label */
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* Model selector */
+    .model-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .model-search-wrap {
+      position: relative;
+      flex: 1;
+    }
+    .model-search-wrap input {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .model-search-wrap input:focus { border-color: var(--accent); }
+    .model-search-wrap input::placeholder { color: var(--text-muted); }
+    .model-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      max-height: 260px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+    .model-dropdown.open { display: block; }
+    .model-option {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .model-option:last-child { border-bottom: none; }
+    .model-option:hover { background: rgba(255,255,255,0.05); }
+    .model-option.selected { background: rgba(108,99,255,0.1); }
+    .model-option-name { flex: 1; }
+    .model-option-prices {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .loading-indicator {
+      padding: 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* Selected model info */
+    .model-info {
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-top: 12px;
+    }
+    .model-info.visible { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .model-info-name { font-weight: 600; font-size: 0.9rem; flex: 1; min-width: 0; }
+    .price-badges { display: flex; gap: 8px; flex-shrink: 0; }
+    .price-badge {
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .price-badge.input-badge { background: rgba(96,165,250,0.15); color: #60a5fa; }
+    .price-badge.output-badge { background: rgba(167,139,250,0.15); color: #a78bfa; }
+
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      background: var(--surface2);
+      padding: 5px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-btn:hover { color: var(--text); }
+    .mode-btn.active { background: var(--border); color: var(--text); }
+
+    /* Input method toggle */
+    .input-method-toggle {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .method-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .method-btn:hover { color: var(--text); }
+    .method-btn.active { background: var(--border); color: var(--text); border-color: transparent; }
+
+    /* Form fields */
+    .field-group {
+      margin-bottom: 16px;
+    }
+    .field-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .field-label label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .field-label .field-hint {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    input[type="number"], input[type="text"] {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+      -moz-appearance: textfield;
+    }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type="number"]:focus, input[type="text"]:focus { border-color: var(--accent); }
+    input[type="number"]::placeholder { color: var(--text-muted); }
+
+    /* Slider */
+    .slider-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+      border: none;
+      padding: 0;
+      accent-color: var(--accent);
+    }
+    .slider-value {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+      min-width: 38px;
+      text-align: right;
+    }
+    .split-display {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .split-bar {
+      height: 6px;
+      border-radius: 3px;
+      transition: width 0.2s;
+    }
+    .split-bar.inp { background: #60a5fa; }
+    .split-bar.out { background: #a78bfa; flex: 1; }
+
+    /* Two column grid */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* Results */
+    .results {
+      background: linear-gradient(135deg, rgba(0,200,150,0.06), rgba(96,165,250,0.06));
+      border: 1px solid rgba(0,200,150,0.2);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-top: 4px;
+    }
+    .results-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .result-main {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: #4ade80;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .result-main.tokens { color: #60a5fa; }
+    .result-sub {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .result-breakdown {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .result-item label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+    .result-item .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .result-item .value.inp { color: #60a5fa; }
+    .result-item .value.out { color: #a78bfa; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .empty-state .icon { font-size: 2rem; margin-bottom: 10px; opacity: 0.4; }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 540px) {
+      header h1 { font-size: 1.6rem; }
+      .card { padding: 16px; }
+      .two-col { grid-template-columns: 1fr; }
+      .result-main { font-size: 2rem; }
+      .platform-tabs { flex-direction: column; }
+      .tab-btn { text-align: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>AI Model Cost Calculator</h1>
+    <p>Calculate costs across Together AI, Fireworks, and OpenRouter</p>
+  </header>
+
+  <!-- Platform Selector -->
+  <div class="card">
+    <div class="section-label">Platform</div>
+    <div class="platform-tabs">
+      <button class="tab-btn active" data-platform="together" onclick="selectPlatform('together')">Together AI</button>
+      <button class="tab-btn" data-platform="fireworks" onclick="selectPlatform('fireworks')">Fireworks AI</button>
+      <button class="tab-btn" data-platform="openrouter" onclick="selectPlatform('openrouter')">OpenRouter</button>
+    </div>
+
+    <!-- Model Selector -->
+    <div class="section-label">Model</div>
+    <div class="model-row">
+      <div class="model-search-wrap">
+        <input
+          type="text"
+          id="modelSearch"
+          placeholder="Search models..."
+          autocomplete="off"
+          onInput="filterModels()"
+          onFocus="openDropdown()"
+          onBlur="scheduleCloseDropdown()"
+        />
+        <div class="model-dropdown" id="modelDropdown">
+          <div class="loading-indicator" id="loadingIndicator">Loading models…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selected model info -->
+    <div class="model-info" id="modelInfo">
+      <div class="model-info-name" id="selectedModelName">—</div>
+      <div class="price-badges">
+        <span class="price-badge input-badge" id="selectedInputPrice">In: —</span>
+        <span class="price-badge output-badge" id="selectedOutputPrice">Out: —</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calculator -->
+  <div class="card">
+    <div class="section-label" style="margin-bottom:12px">Calculation Mode</div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="modeForward" onclick="setMode('forward')">Tokens → Cost</button>
+      <button class="mode-btn" id="modeBackward" onclick="setMode('backward')">Budget → Tokens</button>
+    </div>
+
+    <!-- Forward Mode: Tokens → Cost -->
+    <div id="forwardPanel">
+      <div class="section-label" style="margin-bottom:8px">Input Method</div>
+      <div class="input-method-toggle" style="margin-bottom:20px">
+        <button class="method-btn active" id="methodDirect" onclick="setInputMethod('direct')">Direct Token Count</button>
+        <button class="method-btn" id="methodPct" onclick="setInputMethod('pct')">Total + Percentage</button>
+      </div>
+
+      <!-- Direct input -->
+      <div id="directPanel">
+        <div class="two-col">
+          <div class="field-group">
+            <div class="field-label">
+              <label>Input Tokens</label>
+              <span class="field-hint">prompt tokens</span>
+            </div>
+            <input type="number" id="inputTokens" placeholder="e.g. 900000" min="0" oninput="calculate()" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">
+              <label>Output Tokens</label>
+              <span class="field-hint">completion tokens</span>
+            </div>
+            <input type="number" id="outputTokens" placeholder="e.g. 100000" min="0" oninput="calculate()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Percentage input -->
+      <div id="pctPanel" style="display:none">
+        <div class="field-group">
+          <div class="field-label">
+            <label>Total Tokens</label>
+          </div>
+          <input type="number" id="totalTokens" placeholder="e.g. 1000000" min="0" oninput="calculate()" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">
+            <label>Input Token %</label>
+          </div>
+          <div class="slider-row">
+            <input type="range" id="inputPctSlider" min="0" max="100" value="90" oninput="syncSlider('forward'); calculate()" />
+            <span class="slider-value"><span id="inputPctVal">90</span>%</span>
+          </div>
+          <div class="split-display">
+            <div class="split-bar inp" id="splitBarInp" style="width:90%"></div>
+            <div class="split-bar out" id="splitBarOut"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.75rem; color:var(--text-muted)">
+            <span>Input: <b id="pctInputLabel" style="color:#60a5fa">90%</b></span>
+            <span>Output: <b id="pctOutputLabel" style="color:#a78bfa">10%</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backward Mode: Budget → Tokens -->
+    <div id="backwardPanel" style="display:none">
+      <div class="field-group">
+        <div class="field-label">
+          <label>Budget (USD)</label>
+        </div>
+        <input type="number" id="budgetInput" placeholder="e.g. 50000" min="0" step="any" oninput="calculate()" />
+      </div>
+      <div class="field-group">
+        <div class="field-label">
+          <label>Input Token %</label>
+        </div>
+        <div class="slider-row">
+          <input type="range" id="budgetPctSlider" min="0" max="100" value="90" oninput="syncSlider('backward'); calculate()" />
+          <span class="slider-value"><span id="budgetPctVal">90</span>%</span>
+        </div>
+        <div class="split-display">
+          <div class="split-bar inp" id="splitBarInpB" style="width:90%"></div>
+          <div class="split-bar out" id="splitBarOutB"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.75rem; color:var(--text-muted)">
+          <span>Input: <b id="bPctInputLabel" style="color:#60a5fa">90%</b></span>
+          <span>Output: <b id="bPctOutputLabel" style="color:#a78bfa">10%</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Results -->
+    <div id="resultsArea">
+      <div class="empty-state">
+        <div class="icon">⚡</div>
+        Select a model and enter token counts to calculate cost
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Model Data ────────────────────────────────────────────────────────────
+const MODELS = {
+  together: [
+    { name: "Gemma 3n E4B Instruct", input: 0.02, output: 0.04 },
+    { name: "Llama 3 8B Instruct Lite", input: 0.10, output: 0.10 },
+    { name: "Mistral Small 3", input: 0.10, output: 0.30 },
+    { name: "Qwen3.5 9B", input: 0.10, output: 0.15 },
+    { name: "gpt-oss-120B", input: 0.15, output: 0.60 },
+    { name: "Qwen3-Next-80B", input: 0.15, output: 1.50 },
+    { name: "Mistral 7B Instruct v0.2", input: 0.20, output: 0.20 },
+    { name: "GLM-4.5-Air", input: 0.20, output: 1.10 },
+    { name: "Qwen3 235B A22B Instruct", input: 0.20, output: 0.60 },
+    { name: "Llama 4 Maverick", input: 0.27, output: 0.85 },
+    { name: "MiniMax M2.5", input: 0.30, output: 1.20 },
+    { name: "Qwen2.5 7B Instruct Turbo", input: 0.30, output: 0.30 },
+    { name: "Kimi K2.5", input: 0.50, output: 2.80 },
+    { name: "DeepSeek-V3.1", input: 0.60, output: 1.70 },
+    { name: "Qwen3 235B A22B Thinking", input: 0.65, output: 3.00 },
+    { name: "Llama 3.3 70B", input: 0.88, output: 0.88 },
+    { name: "GLM-5", input: 1.00, output: 3.20 },
+    { name: "Kimi K2 Instruct", input: 1.00, output: 3.00 },
+    { name: "Kimi K2 Thinking", input: 1.20, output: 4.00 },
+    { name: "DeepSeek-R1-0528", input: 3.00, output: 7.00 },
+  ],
+  fireworks: [
+    { name: "OpenAI gpt-oss-20b", input: 0.07, output: 0.30 },
+    { name: "OpenAI gpt-oss-120b", input: 0.15, output: 0.60 },
+    { name: "Qwen3 VL 30B A3B", input: 0.15, output: 0.60 },
+    { name: "MiniMax M2", input: 0.30, output: 1.20 },
+    { name: "DeepSeek V3", input: 0.56, output: 1.68 },
+    { name: "Kimi K2 Instruct", input: 0.60, output: 2.50 },
+    { name: "Kimi K2.5", input: 0.60, output: 3.00 },
+    { name: "GLM-4.7", input: 0.60, output: 2.20 },
+    { name: "GLM-5", input: 1.00, output: 3.20 },
+    { name: "Kimi K2.5 Turbo", input: 0.99, output: 4.94 },
+    // Tier-based (by parameter size)
+    { name: "Custom Model (<4B params)", input: 0.10, output: 0.10 },
+    { name: "Custom Model (4B–16B params)", input: 0.20, output: 0.20 },
+    { name: "Custom Model (>16B params)", input: 0.90, output: 0.90 },
+    { name: "Custom MoE (0B–56B active)", input: 0.50, output: 0.50 },
+    { name: "Custom MoE (56B–176B active)", input: 1.20, output: 1.20 },
+  ],
+  openrouter: null, // loaded from API
+};
+
+let state = {
+  platform: 'together',
+  model: null,
+  mode: 'forward',
+  inputMethod: 'direct',
+};
+
+let openrouterModels = null;
+let dropdownCloseTimer = null;
+let modelRegistry = {}; // index → model, for safe event delegation
+
+// ─── Platform ──────────────────────────────────────────────────────────────
+function selectPlatform(p) {
+  state.platform = p;
+  state.model = null;
+
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.platform === p);
+  });
+
+  document.getElementById('modelSearch').value = '';
+  document.getElementById('modelInfo').classList.remove('visible');
+  renderDropdownItems('');
+
+  if (p === 'openrouter' && !openrouterModels) {
+    loadOpenRouterModels();
+  }
+
+  calculate();
+}
+
+// ─── OpenRouter live fetch ─────────────────────────────────────────────────
+async function loadOpenRouterModels() {
+  const dd = document.getElementById('modelDropdown');
+  const li = document.getElementById('loadingIndicator');
+  if (li) li.textContent = 'Fetching live OpenRouter pricing…';
+
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/models');
+    const data = await resp.json();
+    openrouterModels = data.data
+      .map(m => ({
+        name: m.name,
+        id: m.id,
+        input: parseFloat(m.pricing?.prompt || 0) * 1_000_000,
+        output: parseFloat(m.pricing?.completion || 0) * 1_000_000,
+      }))
+      .filter(m => m.input > 0 || m.output > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    MODELS.openrouter = openrouterModels;
+    renderDropdownItems(document.getElementById('modelSearch').value);
+  } catch (e) {
+    if (li) li.textContent = 'Failed to load OpenRouter models. Check connection.';
+  }
+}
+
+// ─── Model Dropdown ────────────────────────────────────────────────────────
+function getActiveModels() {
+  if (state.platform === 'openrouter') {
+    return MODELS.openrouter || [];
+  }
+  return MODELS[state.platform] || [];
+}
+
+function filterModels() {
+  const q = document.getElementById('modelSearch').value;
+  renderDropdownItems(q);
+  openDropdown();
+}
+
+function renderDropdownItems(query) {
+  const dd = document.getElementById('modelDropdown');
+  const models = getActiveModels();
+
+  if (state.platform === 'openrouter' && !MODELS.openrouter) {
+    dd.innerHTML = '<div class="loading-indicator" id="loadingIndicator">Fetching live OpenRouter pricing…</div>';
+    return;
+  }
+
+  const q = (query || '').toLowerCase().trim();
+  const filtered = q
+    ? models.filter(m => m.name.toLowerCase().includes(q) || (m.id || '').toLowerCase().includes(q))
+    : models;
+
+  if (filtered.length === 0) {
+    dd.innerHTML = '<div class="loading-indicator">No models found</div>';
+    return;
+  }
+
+  modelRegistry = {};
+  dd.innerHTML = filtered.map((m, i) => {
+    modelRegistry[i] = m;
+    return `
+    <div class="model-option ${state.model && state.model.name === m.name ? 'selected' : ''}"
+         data-model-idx="${i}">
+      <span class="model-option-name">${m.name}${m.id ? `<br><small style="color:var(--text-muted);font-size:0.72em">${m.id}</small>` : ''}</span>
+      <span class="model-option-prices">
+        In: $${fmt(m.input)}<br>Out: $${fmt(m.output)}
+      </span>
+    </div>`;
+  }).join('');
+}
+
+function selectModel(name, input, output) {
+  state.model = { name, input, output };
+  document.getElementById('modelSearch').value = name;
+  document.getElementById('modelDropdown').classList.remove('open');
+
+  const info = document.getElementById('modelInfo');
+  info.classList.add('visible');
+  document.getElementById('selectedModelName').textContent = name;
+  document.getElementById('selectedInputPrice').textContent = `In: $${fmt(input)} / 1M`;
+  document.getElementById('selectedOutputPrice').textContent = `Out: $${fmt(output)} / 1M`;
+
+  calculate();
+}
+
+function openDropdown() {
+  clearTimeout(dropdownCloseTimer);
+  const dd = document.getElementById('modelDropdown');
+  dd.classList.add('open');
+  renderDropdownItems(document.getElementById('modelSearch').value);
+}
+
+function scheduleCloseDropdown() {
+  dropdownCloseTimer = setTimeout(() => {
+    document.getElementById('modelDropdown').classList.remove('open');
+  }, 150);
+}
+
+// ─── Mode & Input Method ───────────────────────────────────────────────────
+function setMode(m) {
+  state.mode = m;
+  document.getElementById('modeForward').classList.toggle('active', m === 'forward');
+  document.getElementById('modeBackward').classList.toggle('active', m === 'backward');
+  document.getElementById('forwardPanel').style.display = m === 'forward' ? '' : 'none';
+  document.getElementById('backwardPanel').style.display = m === 'backward' ? '' : 'none';
+  calculate();
+}
+
+function setInputMethod(m) {
+  state.inputMethod = m;
+  document.getElementById('methodDirect').classList.toggle('active', m === 'direct');
+  document.getElementById('methodPct').classList.toggle('active', m === 'pct');
+  document.getElementById('directPanel').style.display = m === 'direct' ? '' : 'none';
+  document.getElementById('pctPanel').style.display = m === 'pct' ? '' : 'none';
+  calculate();
+}
+
+function syncSlider(which) {
+  if (which === 'forward') {
+    const v = document.getElementById('inputPctSlider').value;
+    document.getElementById('inputPctVal').textContent = v;
+    document.getElementById('pctInputLabel').textContent = v + '%';
+    document.getElementById('pctOutputLabel').textContent = (100 - v) + '%';
+    document.getElementById('splitBarInp').style.width = v + '%';
+  } else {
+    const v = document.getElementById('budgetPctSlider').value;
+    document.getElementById('budgetPctVal').textContent = v;
+    document.getElementById('bPctInputLabel').textContent = v + '%';
+    document.getElementById('bPctOutputLabel').textContent = (100 - v) + '%';
+    document.getElementById('splitBarInpB').style.width = v + '%';
+  }
+}
+
+// ─── Calculation ───────────────────────────────────────────────────────────
+function calculate() {
+  const area = document.getElementById('resultsArea');
+  if (!state.model) {
+    area.innerHTML = `<div class="empty-state"><div class="icon">⚡</div>Select a model and enter values to calculate</div>`;
+    return;
+  }
+
+  const { input: inPrice, output: outPrice } = state.model;
+
+  if (state.mode === 'forward') {
+    let inputTok = 0, outputTok = 0;
+
+    if (state.inputMethod === 'direct') {
+      inputTok = parseFloat(document.getElementById('inputTokens').value) || 0;
+      outputTok = parseFloat(document.getElementById('outputTokens').value) || 0;
+    } else {
+      const total = parseFloat(document.getElementById('totalTokens').value) || 0;
+      const pct = parseFloat(document.getElementById('inputPctSlider').value) / 100;
+      inputTok = total * pct;
+      outputTok = total * (1 - pct);
+    }
+
+    if (inputTok === 0 && outputTok === 0) {
+      area.innerHTML = `<div class="empty-state"><div class="icon">⚡</div>Enter token counts above to see cost</div>`;
+      return;
+    }
+
+    const inputCost = (inputTok / 1_000_000) * inPrice;
+    const outputCost = (outputTok / 1_000_000) * outPrice;
+    const total = inputCost + outputCost;
+
+    area.innerHTML = `
+      <div class="results">
+        <div class="results-title">Total Cost</div>
+        <div class="result-main">$${fmtDollar(total)}</div>
+        <div class="result-sub">${fmtTokens(inputTok + outputTok)} total tokens</div>
+        <div class="result-breakdown">
+          <div class="result-item">
+            <label>Input Cost</label>
+            <div class="value inp">$${fmtDollar(inputCost)}</div>
+          </div>
+          <div class="result-item">
+            <label>Output Cost</label>
+            <div class="value out">$${fmtDollar(outputCost)}</div>
+          </div>
+          <div class="result-item">
+            <label>Input Tokens</label>
+            <div class="value">${fmtTokens(inputTok)}</div>
+          </div>
+          <div class="result-item">
+            <label>Output Tokens</label>
+            <div class="value">${fmtTokens(outputTok)}</div>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    // Backward: budget → tokens
+    const budget = parseFloat(document.getElementById('budgetInput').value) || 0;
+    const inPct = parseFloat(document.getElementById('budgetPctSlider').value) / 100;
+    const outPct = 1 - inPct;
+
+    if (budget === 0) {
+      area.innerHTML = `<div class="empty-state"><div class="icon">⚡</div>Enter your budget above to see token counts</div>`;
+      return;
+    }
+
+    // budget = T * (inPct * inPrice/1M + outPct * outPrice/1M)
+    const blendedPricePerToken = (inPct * inPrice + outPct * outPrice) / 1_000_000;
+    if (blendedPricePerToken === 0) {
+      area.innerHTML = `<div class="empty-state">Cannot calculate: model has $0 pricing</div>`;
+      return;
+    }
+
+    const totalTokens = budget / blendedPricePerToken;
+    const inputTok = totalTokens * inPct;
+    const outputTok = totalTokens * outPct;
+    const blendedPer1M = blendedPricePerToken * 1_000_000;
+
+    area.innerHTML = `
+      <div class="results">
+        <div class="results-title">Token Capacity for $${fmtDollar(budget)}</div>
+        <div class="result-main tokens">${fmtTokens(totalTokens)}</div>
+        <div class="result-sub">total tokens · blended rate $${fmt(blendedPer1M)} / 1M</div>
+        <div class="result-breakdown">
+          <div class="result-item">
+            <label>Input Tokens (${Math.round(inPct * 100)}%)</label>
+            <div class="value inp">${fmtTokens(inputTok)}</div>
+          </div>
+          <div class="result-item">
+            <label>Output Tokens (${Math.round(outPct * 100)}%)</label>
+            <div class="value out">${fmtTokens(outputTok)}</div>
+          </div>
+          <div class="result-item">
+            <label>Input Price / 1M</label>
+            <div class="value">$${fmt(inPrice)}</div>
+          </div>
+          <div class="result-item">
+            <label>Output Price / 1M</label>
+            <div class="value">$${fmt(outPrice)}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+
+// ─── Formatting helpers ────────────────────────────────────────────────────
+function fmt(n) {
+  if (n === 0) return '0';
+  if (n < 0.01) return n.toPrecision(3);
+  if (n < 1) return n.toFixed(3).replace(/\.?0+$/, '');
+  if (n < 10) return n.toFixed(2);
+  return n.toFixed(2);
+}
+
+function fmtDollar(n) {
+  if (n === 0) return '0.00';
+  if (n < 0.001) return n.toPrecision(3);
+  if (n < 1) return n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  if (n < 10000) return n.toFixed(2);
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtTokens(n) {
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + 'B';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return Math.round(n).toString();
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+document.getElementById('modelDropdown').addEventListener('mousedown', e => {
+  const option = e.target.closest('[data-model-idx]');
+  if (!option) return;
+  e.preventDefault(); // prevent blur from firing before selection
+  const m = modelRegistry[option.dataset.modelIdx];
+  if (m) selectModel(m.name, m.input, m.output);
+});
+
+renderDropdownItems('');
+</script>
+</body>
+</html>
